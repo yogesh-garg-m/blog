@@ -1,6 +1,7 @@
 const { Router } = require("express");
 const User = require("../models/user.js");
 const bcrypt = require("bcrypt");
+const {createTokenForUser} = require("../services/authentication.js");
 
 const router = Router();
 
@@ -14,11 +15,15 @@ router
     .post("/signup", async (req, res) => {
         const { fullName, email, password } = req.body;
         try {
-            await User.create({
+            const user = await User.create({
                 fullName,
                 email,
                 password
             });
+            const token = createTokenForUser(user);
+            console.log('User token is: ', token);
+            res.cookie("token", token, { httpOnly: true, secure: true });
+
             return res.redirect("/");
         } catch (error) {
             console.error("Error creating user:", error);
@@ -38,17 +43,23 @@ router
             // Compare provided password with stored hashed password
             const isMatch = await bcrypt.compare(password, user.password);
             if (!isMatch) {
-                return res.status(400).send("Invalid email or password");
+                return res.status(400).render("signin", {
+                    error: "Invalid password"
+                });
             }
-
-            // Store user session (if using sessions)
-            // req.session.user = user;
+            const token = createTokenForUser(user);
+            console.log('User token is: ', token);
+            res.cookie("token", token, { httpOnly: true, secure: true });
 
             return res.redirect("/");
         } catch (error) {
             console.error("Error signing in:", error);
             return res.status(500).send("Internal Server Error");
         }
+    });
+    router.get("/logout", (req, res) => {
+        res.clearCookie("token");
+        res.redirect("/");
     });
 
 module.exports = router;
